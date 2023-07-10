@@ -1,0 +1,800 @@
+/*Solar System Simulation v1
+
+    CREDIT:
+Made functional by WebGL render engine and the Three.js libraries
+All Planet textures are sourced from Wikimedia.org under Creative Commons licencing
+
+    This program creates the celestial bodies of our system by calculating 
+the correct orbit positions as time progresses instead of using real physics
+simulation. I did NOT make use of key variables of physics like gravity, mass,
+or eccentricity but instead i took planet data of their Semi-Major Axis' 
+and Orbital periods for their procedural orbit path.
+        - THIS CODE IS NOT IN EXAHUSTIVE DETAIL BY ANY MEASURE -
+there aren't even any moons or asteroids, it's made for simple visualization
+
+    You may orbit, pan, and control your perspective around the system
+and it's planets by using your mouse/trackpad OR by pressing keys 1-9
+to cycle perspective between each major celestial body in our solar system.
+(Be careful when switching perspective on high speed warp)
+*/
+
+// Import Three.js library, Orbit Controls and Text geometry add-on
+import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js";
+import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.121.1/examples/jsm/controls/OrbitControls.js";
+//3D Elements provided by Three.js
+// scene, camera, renderer, helpers
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(70, 1, 0.01, 9000000);
+//Imported WebGL controls
+const renderer = new THREE.WebGLRenderer();
+const controls = new OrbitControls(camera, renderer.domElement);
+const loader = new THREE.TextureLoader();
+
+//Dynamic variables for Siumulation
+
+var adjust = 50;
+var interval = 1;
+var life = 50;
+var time = adjust; //i assigned Time to start at x100 speed to immeditaley display orbital pattern
+var scale = 15; //scale of user interface
+var pointInterval = 1 * interval;
+/*the larger the point interval, the longer the time it take for any orbit point 
+    to be recorded into each of their respective arrays.
+    This means a smaller value means a smoother orbit curve while a larger number
+    creates more geometric orbit shapes.
+    Some really intresting geometric art can be created when messing around with these varaibles*/
+
+var pointLife = 1 * life; // how long a point lasts in each array.
+
+var lastLife = pointLife; //use the 'A' and 'D' keys to adjust time. MAY CAUSE MOTION SICKNESS IN DIFFERENT MODES OF PERSPECTIVE
+var texture = new THREE.TextureLoader().load();
+var material = new THREE.MeshBasicMaterial({
+    map: texture,
+    side: THREE.DoubleSide,
+});
+var geometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+var plane = new THREE.Mesh(geometry, material);
+
+scene.add(plane);
+function userInterface(time) {
+    var canvas = document.createElement("canvas");
+    canvas.width = 4000;
+    canvas.height = 4000;
+
+    var orbitDynamics = canvas.getContext("2d");
+    orbitDynamics.fillStyle = "black";
+    orbitDynamics.fillRect(0, 0, window.innerwidth, window.innerheight);
+    orbitDynamics.font = "Bold 100px Arial";
+    orbitDynamics.fillStyle = "white";
+    orbitDynamics.fillText("Orbit Dynamics", 10, 100);
+    var texture = new THREE.Texture(canvas);
+
+    var TimeWarp = canvas.getContext("2d");
+    TimeWarp.fillStyle = "transparent";
+    TimeWarp.fillRect(0, 0, canvas.width, canvas.height);
+    TimeWarp.font = "60px Arial";
+    TimeWarp.fillStyle = "white";
+    TimeWarp.fillText("Time Warp: " + Math.ceil(adjust) + "x", 10, 170);
+    var TimeWarpControl = canvas.getContext("2d");
+    TimeWarpControl.fillStyle = "transparent";
+    TimeWarpControl.fillRect(0, 0, canvas.width, canvas.height);
+    TimeWarpControl.font = "bold 30px Courier";
+    TimeWarpControl.fillStyle = "limeGreen";
+    TimeWarpControl.fillText("Q and W", 50, 190);
+    var IntervalWarp = canvas.getContext("2d");
+    IntervalWarp.fillStyle = "transparent";
+    IntervalWarp.fillRect(0, 0, canvas.width, canvas.height);
+    IntervalWarp.font = "60px Arial";
+    IntervalWarp.fillStyle = "white";
+    IntervalWarp.fillText(
+        "Point Delay : " + pointInterval + " frames",
+        10,
+        250
+    );
+    var texture = new THREE.Texture(canvas);
+    var IntervalWarpControl = canvas.getContext("2d");
+    IntervalWarpControl.fillStyle = "transparent";
+    IntervalWarpControl.fillRect(0, 0, canvas.width, canvas.height);
+    IntervalWarpControl.font = "bold 30px Courier";
+    IntervalWarpControl.fillStyle = "limeGreen";
+    IntervalWarpControl.fillText("A and S", 50, 270);
+
+    texture.needsUpdate = true;
+    var lifeWarp = canvas.getContext("2d");
+    lifeWarp.fillStyle = "transparent";
+    lifeWarp.fillRect(0, 0, canvas.width, canvas.height);
+    lifeWarp.font = "60px Arial";
+    lifeWarp.fillStyle = "white";
+    lifeWarp.fillText("Orbit lifetime : " + pointLife + " frames", 10, 320);
+
+    var texture = new THREE.Texture(canvas);
+    var lifeWarpControl = canvas.getContext("2d");
+    lifeWarpControl.fillStyle = "transparent";
+    lifeWarpControl.fillRect(0, 0, canvas.width, canvas.height);
+    lifeWarpControl.font = "bold 30px Courier";
+    lifeWarpControl.fillStyle = "limeGreen";
+    lifeWarpControl.fillText("Z and X", 50, 340);
+    var texture = new THREE.Texture(canvas);
+    texture.needsUpdate = true;
+
+    return texture.image;
+}
+
+document.addEventListener("keydown", (event) => {
+    if (event.code == "KeyQ") {
+        adjust /= 1.1;
+        counter = pointInterval;
+        time = adjust;
+        Math.round(adjust);
+        println(adjust);
+    }
+    if (event.code == "KeyW") {
+        adjust *= 1.05;
+        time = adjust;
+        Math.round(time);
+        counter = pointInterval;
+        println(time);
+    }
+    if (event.code == "KeyA") {
+        pointInterval -= 1;
+        pointInterval = Math.abs(pointInterval);
+    }
+
+    if (event.code == "KeyS") {
+        pointInterval += 1;
+        pointInterval = Math.abs(pointInterval);
+    }
+    if (event.code == "KeyZ") {
+        pointLife -= 1;
+        pointLife = Math.abs(pointLife);
+    }
+    if (event.code == "KeyX") {
+        pointLife += 1;
+        pointLife = Math.abs(pointLife);
+    }
+});
+
+function axeHelpers() {
+    //this function generates three lines facing x,y,and z in order to indicate rotation
+    objects.forEach((node) => {
+        const axes = new THREE.AxesHelper(500);
+        axes.material.depthTest = true;
+        axes.renderOrder = 1;
+        node.add(axes);
+    });
+    const axe = new THREE.AxesHelper(500);
+    axe.material.depthTest = false;
+    axe.renderOrder = 1;
+    Sun.add(axe);
+}
+
+const light = new THREE.PointLight("#FFFFFF", 0.8);
+const light2 = new THREE.AmbientLight("#FFFFFF", 0.5);
+
+//Data on the Solar Systems Celestial Bodies
+//(in thousands of Km)
+const SUN_RADIUS = 696.34;
+const MERC_RADIUS = 2.4397;
+const MERC_SEMIMAJOR = 57909;
+const MERC_DISTANCE = 58152;
+const VENUS_RADIUS = 6.051;
+const VENUS_SEMIMAJOR = 108200.0;
+const VENUS_DISTANCE = 66785.0;
+const EARTH_RADIUS = 6.378;
+const EARTH_SEMIMAJOR = 149597.887;
+const EARTH_DISTANCE = 150310.0;
+const MARS_RADIUS = 3.3895;
+const MARS_SEMIMAJOR = 228000.0;
+const MARS_DISTANCE = 155060.0;
+const JUPITER_RADIUS = 69.911;
+const JUPITER_SEMIMAJOR = 778479.0;
+const JUPITER_DISTANCE = 740990.0;
+const SATURN_RADIUS = 58.232;
+const SATURN_SEMIMAJOR = 1433530.0;
+const SATURN_DISTANCE = 910000.0;
+const URANUS_RADIUS = 25.362;
+const URANUS_SEMIMAJOR = 2867043.0;
+const URANUS_DISTANCE = 2939000.0;
+const NEPTUNE_RADIUS = 24.622;
+const NEPTUNE_SEMIMAJOR = 4514953.0;
+const NEPTUNE_DISTANCE = 2855600.0;
+
+// in Earth days converted into seconds
+const SUN_PERIOD = (27 * 86400) / time;
+const MERC_PERIOD = (59 * 86400) / time;
+const VENUS_PERIOD = (225 * 86400) / time;
+const EARTH_PERIOD = (365 * 86400) / time;
+const MARS_PERIOD = (687 * 86400) / time;
+const JUPITER_PERIOD = (4333 * 86400) / time;
+const SATURN_PERIOD = (10756 * 86400) / time;
+const URANUS_PERIOD = (30687 * 86400) / time;
+const NEPTUNE_PERIOD = (60190 * 86400) / time;
+
+//this array adds all the planets into one list so that i can add all the polar axes in one function
+var objects = [];
+//This counter allows for the orbit point arrays to record the planet positions per frame
+var counter = 0;
+//<3
+//the astral plane - used to help visualize the scale of our solar system and to keep your navigation on track
+{
+    const radius = 5000000;
+    const sectors = 4;
+    const rings = 3;
+    const divisions = 5000;
+    const polarHelper = new THREE.PolarGridHelper(
+        radius,
+        sectors,
+        rings,
+        divisions,
+        "grey"
+    );
+    scene.add(polarHelper);
+    const radius2 = 250000;
+    const sectors2 = 4;
+    const rings2 = 5;
+    const divisions2 = 500;
+    const polarHelper2 = new THREE.PolarGridHelper(
+        radius2,
+        sectors2,
+        rings2,
+        divisions2,
+        "gray",
+        "gray"
+    );
+    scene.add(polarHelper2);
+}
+
+//3d Models of the Celestial bodies in the Solar System
+//Sun geometry
+const SunMesh = new THREE.SphereGeometry(SUN_RADIUS, 50, 50);
+const SunMat = new THREE.MeshBasicMaterial({
+    map: loader.load(
+        "https://codehs.com/uploads/878740bb68672b4c0e21e1b027c2d6c8"
+    ),
+});
+const Sun = new THREE.Mesh(SunMesh, SunMat);
+scene.add(Sun);
+const SunSprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+        map: loader.load(
+            "https://codehs.com/uploads/12e19b3e5a15ada21448c4c361fc62c3"
+        ),
+    })
+);
+SunSprite.position.set(Sun.position.x, -15000, Sun.position.z);
+SunSprite.scale.set(2550 * scale, 2550 * scale, 1);
+scene.add(SunSprite);
+//Mercury geometry
+const mercMesh = new THREE.SphereGeometry(MERC_RADIUS, 16, 16);
+const mercMat = new THREE.MeshStandardMaterial({
+    map: loader.load(
+        "https://codehs.com/uploads/37bf05ab1674e1dfff10fd342ec0bea8"
+    ),
+});
+const mercury = new THREE.Mesh(mercMesh, mercMat);
+scene.add(mercury);
+mercury.position.set(MERC_DISTANCE, 0, 0);
+const mercSprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+        map: loader.load(
+            "https://codehs.com/uploads/26936b7d2c157d29d8fcdadb43ac2cc0"
+        ),
+    })
+);
+mercSprite.scale.set(5219 * scale, 1565 * scale, 1);
+scene.add(mercSprite);
+const mercuryOrbitPoints = []; //a list that constantly pushes mercurys last position into xyz data
+const mercuryOrbitGeometry = new THREE.BufferGeometry().setFromPoints(
+    mercuryOrbitPoints
+);
+const mercuryOrbitMaterial = new THREE.LineBasicMaterial({
+    color: "purple",
+    linewidth: 50000,
+});
+const mercuryOrbit = new THREE.Line(mercuryOrbitGeometry, mercuryOrbitMaterial);
+scene.add(mercuryOrbit);
+objects.push(mercury);
+
+// Venus geometry
+const VenusMesh = new THREE.SphereGeometry(VENUS_RADIUS, 16, 16);
+const VenusMat = new THREE.MeshStandardMaterial({
+    map: loader.load(
+        "https://codehs.com/uploads/f96cd646909b1d4719e359721d746b9e"
+    ),
+});
+const Venus = new THREE.Mesh(VenusMesh, VenusMat);
+scene.add(Venus);
+Venus.position.set(VENUS_DISTANCE, 0, 0);
+objects.push(Venus);
+const VenusSprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+        map: loader.load(
+            "https://codehs.com/uploads/2adf08edb3c94367c1994ebf33b737f5"
+        ),
+    })
+);
+VenusSprite.scale.set(3886 * scale, 2380 * scale, 0);
+scene.add(VenusSprite);
+const venusOrbitPoints = [];
+const venusOrbitGeometry = new THREE.BufferGeometry().setFromPoints(
+    venusOrbitPoints
+);
+const venusOrbitMaterial = new THREE.LineBasicMaterial({
+    color: "beige	",
+    linewidth: 50000,
+});
+const venusOrbit = new THREE.Line(venusOrbitGeometry, venusOrbitMaterial);
+scene.add(venusOrbit);
+
+//Earth geometry
+const earthMesh = new THREE.SphereGeometry(EARTH_RADIUS, 16, 16);
+const earthMat = new THREE.MeshStandardMaterial({
+    map: loader.load(
+        "https://codehs.com/uploads/55774c13ed2bae8a81fec17c3f9b63f9"
+    ),
+});
+const earth = new THREE.Mesh(earthMesh, earthMat);
+scene.add(earth);
+earth.position.set(EARTH_DISTANCE, 0, 0);
+objects.push(earth);
+const earthSprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+        map: loader.load(
+            "https://codehs.com/uploads/e98cf32558861f59d052c79432b6f4ca"
+        ),
+    })
+);
+earthSprite.scale.set(3282 * scale, 2308 * scale, 0);
+scene.add(earthSprite);
+const earthOrbitPoints = [];
+const earthOrbitGeometry = new THREE.BufferGeometry().setFromPoints(
+    earthOrbitPoints
+);
+const earthOrbitMaterial = new THREE.LineBasicMaterial({
+    color: "lime",
+    linewidth: 50000,
+});
+const earthOrbit = new THREE.Line(earthOrbitGeometry, earthOrbitMaterial);
+scene.add(earthOrbit);
+
+//Mars geometry
+const marsMesh = new THREE.SphereGeometry(MARS_RADIUS, 16, 16);
+const marsMat = new THREE.MeshStandardMaterial({
+    map: loader.load(
+        "https://codehs.com/uploads/037d00da2758ea991f7dab66a8fa796e"
+    ),
+});
+const mars = new THREE.Mesh(marsMesh, marsMat);
+scene.add(mars);
+mars.position.set(MARS_DISTANCE, 0, 0);
+objects.push(mars);
+const marsSprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+        map: loader.load(
+            "https://codehs.com/uploads/935081a67e1770706af2f829eee1be53"
+        ),
+    })
+);
+marsSprite.scale.set(3114 * scale, 2308 * scale, 0);
+scene.add(marsSprite);
+const marsOrbitPoints = [];
+const marsOrbitGeometry = new THREE.BufferGeometry().setFromPoints(
+    marsOrbitPoints
+);
+const marsOrbitMaterial = new THREE.LineBasicMaterial({
+    color: "lightSalmon",
+    linewidth: 50000,
+});
+const marsOrbit = new THREE.Line(marsOrbitGeometry, marsOrbitMaterial);
+scene.add(marsOrbit);
+
+//Jupiter geometry
+const jupiterMesh = new THREE.SphereGeometry(JUPITER_RADIUS, 16, 16);
+const jupiterMat = new THREE.MeshStandardMaterial({
+    map: loader.load(
+        "https://codehs.com/uploads/615b5edacc901664308b484c03a10707"
+    ),
+});
+const jupiter = new THREE.Mesh(jupiterMesh, jupiterMat);
+scene.add(jupiter);
+jupiter.position.set(JUPITER_DISTANCE, 0, 0);
+objects.push(jupiter);
+const jupiterSprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+        map: loader.load(
+            "https://codehs.com/uploads/dd7da90b63fa3598813cedf578f1f4c3"
+        ),
+    })
+);
+jupiterSprite.scale.set(4360 * scale, 2308 * scale, 0);
+scene.add(jupiterSprite);
+const jupiterOrbitPoints = [];
+const jupiterOrbitGeometry = new THREE.BufferGeometry().setFromPoints(
+    jupiterOrbitPoints
+);
+const jupiterOrbitMaterial = new THREE.LineBasicMaterial({
+    color: "orange",
+    linewidth: 50000,
+});
+const jupiterOrbit = new THREE.Line(jupiterOrbitGeometry, jupiterOrbitMaterial);
+scene.add(jupiterOrbit);
+
+//Saturn geometry
+const saturnMesh = new THREE.SphereGeometry(SATURN_RADIUS, 16, 16);
+const saturnMat = new THREE.MeshStandardMaterial({
+    map: loader.load("https://codehs.com/uploads/3c6aa29eb1210d7ebc869937cd6ad3de"),
+});
+const saturn = new THREE.Mesh(saturnMesh, saturnMat);
+scene.add(saturn);
+saturn.position.set(SATURN_DISTANCE, 0, 0);
+objects.push(saturn);
+const saturnSprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+        map: loader.load( "https://codehs.com/uploads/2276d6e28fc429727f325c80736a5c86" ),
+    })
+);
+saturnSprite.scale.set(4232 * scale, 2308 * scale, 0);
+scene.add(saturnSprite);
+const saturnOrbitPoints = [];
+const saturnOrbitGeometry = new THREE.BufferGeometry().setFromPoints(
+    saturnOrbitPoints
+);
+const saturnOrbitMaterial = new THREE.LineBasicMaterial({
+    color: "khaki",
+    linewidth: 50000,
+});
+const saturnOrbit = new THREE.Line(saturnOrbitGeometry, saturnOrbitMaterial);
+scene.add(saturnOrbit);
+
+//Uranus
+const uranusMesh = new THREE.SphereGeometry(URANUS_RADIUS, 16, 16);
+const uranusMat = new THREE.MeshStandardMaterial({
+    map: loader.load(
+        "https://codehs.com/uploads/c915769b51c1422270b5cba86686582b"),
+});
+const uranus = new THREE.Mesh(uranusMesh, uranusMat);
+scene.add(uranus);
+uranus.position.set(URANUS_DISTANCE, 0, 0);
+objects.push(uranus);
+const uranusSprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+        map: loader.load(
+            "https://codehs.com/uploads/935081a67e1770706af2f829eee1be53"
+        ),
+    })
+);
+uranusSprite.scale.set(3886 * scale, 2308 * scale, 0);
+scene.add(uranus);
+const uranusOrbitPoints = [];
+const uranusOrbitGeometry = new THREE.BufferGeometry().setFromPoints(
+    uranusOrbitPoints
+);
+const uranusOrbitMaterial = new THREE.LineBasicMaterial({
+    color: "lightBlue",
+    linewidth: 50000,
+});
+const uranusOrbit = new THREE.Line(uranusOrbitGeometry, uranusOrbitMaterial);
+scene.add(uranusOrbit);
+
+//Neptune
+const neptuneMesh = new THREE.SphereGeometry(NEPTUNE_RADIUS, 16, 16);
+const neptuneMat = new THREE.MeshStandardMaterial({
+    map: loader.load(
+        "https://codehs.com/uploads/ebd2edb6d482445ffa28f94aff28ab3a"
+    ),
+});
+const neptune = new THREE.Mesh(neptuneMesh, uranusMat);
+scene.add(neptune);
+neptune.position.set(NEPTUNE_DISTANCE, 0, 0);
+objects.push(neptune);
+const neptuneSprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+        map: loader.load(
+            "https://codehs.com/uploads/935081a67e1770706af2f829eee1be53"), })
+);
+neptuneSprite.scale.set(3886 * scale, 2308 * scale, 0);
+scene.add(neptune);
+const neptuneOrbitPoints = [];
+const neptuneOrbitGeometry = new THREE.BufferGeometry().setFromPoints(
+    neptuneOrbitPoints
+);
+const neptuneOrbitMaterial = new THREE.LineBasicMaterial({
+    color: "ROYALBlue",
+    linewidth: 50000,
+});
+const neptuneOrbit = new THREE.Line(neptuneOrbitGeometry, neptuneOrbitMaterial);
+scene.add(neptuneOrbit);
+
+//number controls that move the camera to the corresponding planet from the Sun
+function cordUpdate(x, y, z) {
+    // when pressing 'c', this function is called to print the camera positions. For convienience..
+    println(x + ", " + y + ", " + z);
+}
+var offset = 2000; //offset is a variable that dictates how far each title is from it's planet
+document.addEventListener("keydown", function () {
+    if (event.keyCode == Keyboard.letter("c")) {
+        cordUpdate(camera.position.x, camera.position.y, camera.position.z);
+    }
+    if (event.keyCode === 49) {
+        // if 1 is pressed perspective shifts to Sun
+        event;
+        camera.position.set(2000, 3000, 3000);
+        camera.lookAt(Sun.position);
+        Sun.add(camera);
+        Sun.remove(camera);
+    }
+    if (event.keyCode === 50) {
+        // if 2 is pressed perspective shifts to Mercury
+        mercury.add(camera);
+        camera.position.set(
+            mercury.position.x,
+            mercury.position.y + offset,
+            mercury.position.z
+        );
+        camera.zoom = 100;
+        camera.lookAt(mercury.position);
+    }
+    if (event.keyCode === 51) {
+        // if 3 is pressed perspective shifts to Venus
+        Venus.add(camera);
+        camera.position.set(
+            Venus.position.x,
+            Venus.position.y + offset,
+            Venus.position.z
+        );
+        camera.zoom = 100;
+        camera.lookAt(Venus.position);
+    }
+    if (event.keyCode === 52) {
+        // if 4 is pressed perspective shifts to Earth
+        earth.add(camera);
+        camera.position.set(
+            earth.position.x,
+            earth.position.y + offset * 4,
+            earth.position.z
+        );
+        camera.zoom = 100;
+        camera.lookAt(earth.position);
+    }
+    if (event.keyCode === 53) {
+        // if 5 is pressed perspective shifts to Mars
+        mars.add(camera);
+        camera.position.set(
+            mars.position.x,
+            mars.position.y + offset * 4,
+            mars.position.z
+        );
+        camera.zoom = 100;
+        camera.lookAt(mars.position);
+    }
+    if (event.keyCode === 54) {
+        // if 6 is pressed perspective shifts to Jupiter
+        jupiter.add(camera);
+        camera.position.set(
+            jupiter.position.x,
+            jupiter.position.y + offset * 40,
+            jupiter.position.z
+        );
+        camera.zoom = 100;
+        camera.lookAt(jupiter.position);
+    }
+    if (event.keyCode === 55) {
+        // if 7 is pressed perspective shifts to Saturn
+        saturn.add(camera);
+
+        camera.position.set(
+            saturn.position.x,
+            saturn.position.y + offset * 40,
+            saturn.position.z
+        );
+        camera.zoom = 100;
+        camera.lookAt(saturn.position);
+    }
+    if (event.keyCode === 56) {
+        // if 8 is pressed perspective shifts to Uranus
+        uranus.add(camera);
+
+        camera.position.set(
+            uranus.position.x,
+            uranus.position.y + offset * 60,
+            uranus.position.z
+        );
+        camera.zoom = 100;
+        camera.lookAt(uranus.position);
+    }
+    if (event.keyCode === 57) {
+        // if 9 is pressed perspective shifts to Neptune
+        neptune.add(camera);
+
+        camera.position.set(
+            neptune.position.x,
+            neptune.position.y + offset * 60,
+            neptune.position.z
+        );
+        camera.zoom = 100;
+        camera.lookAt(neptune.position);
+    }
+});
+// Main function
+function main() {
+    document.querySelector("canvas").remove();
+    scene.background = texture;
+    renderer.setSize(1000,1000);
+    document.body.appendChild(renderer.domElement);
+    camera.position.set(0, 400000, 0);
+    camera.lookAt(Sun.position);
+    scene.add(light);
+    light.position.set(0, 0, 0);
+    scene.add(light2);
+    axeHelpers();
+
+    update();
+}
+
+function update(time) {
+    //updates each frame to abide by the update procedure
+    var lastTime = 0;
+    Sun.rotation.y += 0.001 * adjust;
+    counter++;
+    time = time * adjust;
+
+    //Mercury Update conditions
+    var mercAngle = (time * (2 * Math.PI)) / MERC_PERIOD;
+    var mercX = Math.cos(mercAngle) * MERC_SEMIMAJOR;
+    var mercZ = Math.sin(mercAngle) * MERC_SEMIMAJOR;
+    mercury.position.set(mercX, 0, mercZ);
+    
+    if (mercuryOrbitPoints.length > pointLife) {
+        mercuryOrbitPoints.shift();
+    }
+    if (counter % pointInterval === 0) {
+        mercuryOrbitPoints.push(mercury.position.clone());
+    }
+    mercuryOrbitGeometry.setFromPoints(mercuryOrbitPoints);
+    scene.add(mercuryOrbit);
+    
+    mercSprite.position.set(
+        mercury.position.x,
+        mercury.position.y + -15000,
+        mercury.position.z
+    );
+    //Venus update conditions
+    var VenusAngle = (time * (2 * Math.PI)) / VENUS_PERIOD;
+    var VenusX = Math.cos(VenusAngle) * VENUS_SEMIMAJOR;
+    var VenusZ = Math.sin(VenusAngle) * VENUS_SEMIMAJOR;
+    VenusSprite.position.set(
+        Venus.position.x,
+        Venus.position.y + -15000,
+        Venus.position.z
+    );
+    Venus.position.set(VenusX, 0, VenusZ);
+    if (venusOrbitPoints.length > pointLife) {
+        venusOrbitPoints.shift();
+    }
+    if (counter % pointInterval === 0) {
+        venusOrbitPoints.push(Venus.position.clone());
+    }
+    venusOrbitGeometry.setFromPoints(venusOrbitPoints);
+    scene.add(venusOrbit);
+
+    //Earth update conditions
+    var earthAngle = (time * (2 * Math.PI)) / EARTH_PERIOD;
+    var earthX = Math.cos(earthAngle) * EARTH_SEMIMAJOR;
+    var earthZ = Math.sin(earthAngle) * EARTH_SEMIMAJOR;
+    earthSprite.position.set(
+        earth.position.x,
+        earth.position.y + -15000,
+        earth.position.z
+    );
+    earth.position.set(earthX, 0, earthZ);
+    earth.rotation.set(0.23, 0, 0);
+    if (earthOrbitPoints.length > pointLife) {
+        earthOrbitPoints.shift();
+    }
+    if (counter % pointInterval === 0) {
+        earthOrbitPoints.push(earth.position.clone());
+    }
+    earthOrbitGeometry.setFromPoints(earthOrbitPoints);
+    scene.add(earthOrbit);
+
+    //Mars update conditions
+    var marsAngle = (time * (2 * Math.PI)) / MARS_PERIOD;
+    var marsX = Math.cos(marsAngle) * MARS_SEMIMAJOR;
+    var marsZ = Math.sin(marsAngle) * MARS_SEMIMAJOR;
+    marsSprite.position.set(
+        mars.position.x,
+        mars.position.y + -15000,
+        mars.position.z
+    );
+    mars.position.set(marsX, 0, marsZ);
+    if (marsOrbitPoints.length > pointLife) {
+        marsOrbitPoints.shift();
+    }
+    if (counter % pointInterval === 0) {
+        marsOrbitPoints.push(mars.position.clone());
+    }
+    marsOrbitGeometry.setFromPoints(marsOrbitPoints);
+    scene.add(marsOrbit);
+
+    //Jupiter update conditions
+    var jupiterAngle = (time * (2 * Math.PI)) / JUPITER_PERIOD;
+    var jupiterX = Math.cos(jupiterAngle) * JUPITER_SEMIMAJOR;
+    var jupiterZ = Math.sin(jupiterAngle) * JUPITER_SEMIMAJOR;
+    jupiterSprite.position.set(
+        jupiter.position.x,
+        jupiter.position.y + -15000,
+        jupiter.position.z
+    );
+    jupiter.position.set(jupiterX, 0, jupiterZ);
+    if (jupiterOrbitPoints.length > pointLife * 7) {
+        jupiterOrbitPoints.shift();
+    }
+    if (counter % pointInterval === 0) {
+        jupiterOrbitPoints.push(jupiter.position.clone());
+    }
+    jupiterOrbitGeometry.setFromPoints(jupiterOrbitPoints);
+    scene.add(jupiterOrbit);
+
+    //Saturn update conditions
+    var saturnAngle = (time * (2 * Math.PI)) / SATURN_PERIOD;
+    var saturnX = Math.cos(saturnAngle) * SATURN_SEMIMAJOR;
+    var saturnZ = Math.sin(saturnAngle) * SATURN_SEMIMAJOR;
+    saturnSprite.position.set(
+        saturn.position.x,
+        saturn.position.y + -15000,
+        saturn.position.z
+    );
+    saturn.position.set(saturnX, 0, saturnZ);
+    if (saturnOrbitPoints.length > pointLife * 15) {
+        saturnOrbitPoints.shift();
+    }
+    if (counter % pointInterval == 0) {
+        saturnOrbitPoints.push(saturn.position.clone());
+    }
+    saturnOrbitGeometry.setFromPoints(saturnOrbitPoints);
+    scene.add(saturnOrbit);
+
+    //Uranus update conditions
+    var uranusAngle = (time * (2 * Math.PI)) / URANUS_PERIOD;
+    var uranusX = Math.cos(uranusAngle) * URANUS_SEMIMAJOR;
+    var uranusZ = Math.sin(uranusAngle) * URANUS_SEMIMAJOR;
+    uranusSprite.position.set(
+        uranus.position.x,
+        uranus.position.y + -15000,
+        uranus.position.z
+    );
+    uranus.position.set(uranusX, 0, uranusZ);
+    if (uranusOrbitPoints.length > pointLife * 30) {
+        uranusOrbitPoints.shift();
+    }
+    if (counter % pointInterval == 0) {
+        uranusOrbitPoints.push(uranus.position.clone());
+    }
+    uranusOrbitGeometry.setFromPoints(uranusOrbitPoints);
+    scene.add(uranusOrbit);
+
+    //Neptune update conditions
+    var neptuneAngle = (time * (2 * Math.PI)) / NEPTUNE_PERIOD;
+    var neptuneX = Math.cos(neptuneAngle) * NEPTUNE_SEMIMAJOR;
+    var neptuneZ = Math.sin(neptuneAngle) * NEPTUNE_SEMIMAJOR;
+    neptuneSprite.position.set(
+        neptune.position.x,
+        neptune.position.y + -15000,
+        neptune.position.z
+    );
+    neptune.position.set(neptuneX, 0, neptuneZ);
+    if (neptuneOrbitPoints.length > pointLife * 40) {
+        neptuneOrbitPoints.shift();
+    }
+    if (counter % pointInterval == 0) {
+        neptuneOrbitPoints.push(neptune.position.clone());
+    }
+    neptuneOrbitGeometry.setFromPoints(neptuneOrbitPoints);
+    scene.add(neptuneOrbit);
+
+    texture.needsUpdate = true;
+    texture.image = userInterface(time);
+    requestAnimationFrame(update);
+    renderer.render(scene, camera);
+}
+main();
